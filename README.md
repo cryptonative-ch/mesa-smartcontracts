@@ -1,5 +1,7 @@
 # Mesa Contracts
 
+![mesa architecture](./assets/mesa_architecture.png)
+
 ## Instructions
 
 Install dependencies
