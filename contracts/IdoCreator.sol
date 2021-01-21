@@ -34,12 +34,15 @@ contract IdoCreator {
         feeNumerator = _feeNumerator;
     }
 
-    function createAuction(address _auctionModule, address _idoManager) external {
+    function createAuction(address _auctionModule, address _idoManager)
+        external
+    {
         require(
             auctionRegistry.isModuleActive(_auctionModule),
             "EasyAuctionFactory: INACTIVE_MODULE"
         );
-        address idoContract = IAuctionDeployer(_auctionModule).deploy(_idoManager);
+        address idoContract =
+            IAuctionDeployer(_auctionModule).deploy(_idoManager);
         allAuctions.push(idoContract);
         emit AuctionCreated(idoContract);
     }

@@ -2,5 +2,5 @@
 pragma solidity >=0.6.8;
 
 contract EasyAuction {
-  // Current placeholder for EasyAuction
+    // Current placeholder for EasyAuction
 }

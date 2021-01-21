@@ -31,7 +31,7 @@ contract FixedPriceAuction is Ownable {
 
     event NewTokenClaim(address buyer, uint256 amount);
 
-    enum States {Initialized, TokensDeposited, Open, Closed}
+    enum States {Initialized, Open, Closed}
 
     uint256 public immutable FEE_DENOMINATOR = 1000;
     address public idoManager;
@@ -49,13 +49,19 @@ contract FixedPriceAuction is Ownable {
     bool public hasWhitelisting;
     mapping(address => bool) public isWhitelisted;
     address public fundsReceiver;
-    address public auctionFactory;
+    address public idoCreator;
     States public auctionState;
 
     mapping(address => uint256) public tokensPurchased;
 
-    constructor(address _idoManager) public{
-      idoManager = _idoManager;
+    constructor(address _idoManager) public {
+        idoManager = _idoManager;
+        idoCreator = msg.sender;
+    }
+
+    modifier onlyIdoManager {
+        require(msg.sender == idoManager, "FixedPriceAuction: FORBIDDEN");
+        _;
     }
 
     function initialize(
@@ -69,12 +75,18 @@ contract FixedPriceAuction is Ownable {
         uint256 _purchaseMaximum,
         uint256 _minimumRaise,
         address _fundsReceiver
-    ) public {
+    ) public onlyIdoManager() {
         require(_tokenIn != _tokenOut, "FixedPriceAuction: invalid tokens");
         require(_tokenPrice > 0, "FixedPriceAuction: invalid tokenPrice");
         require(_tokensForSale > 0, "FixedPriceAuction: invalid tokensForSale");
-        require(_startDate > block.timestamp || _startDate == 0, "FixedPriceAuction: invalid startDate");
-        require(_endDate > _startDate || _endDate == 0, "FixedPriceAuction: invalid endDate");
+        require(
+            _startDate > block.timestamp || _startDate == 0,
+            "FixedPriceAuction: invalid startDate"
+        );
+        require(
+            _endDate > _startDate || _endDate == 0,
+            "FixedPriceAuction: invalid endDate"
+        );
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
         tokenPrice = _tokenPrice;
@@ -85,12 +97,13 @@ contract FixedPriceAuction is Ownable {
         purchaseMaximum = _purchaseMaximum;
         minimumRaise = _minimumRaise;
         fundsReceiver = _fundsReceiver;
-        auctionFactory = msg.sender;
 
+        /*
         if (hasWhitelisting) {
             // register whitelist
             IEasyAuctionFactory(auctionFactory).auctionWhitelist();
         }
+        */
 
         emit AuctionInitalized(
             _tokenIn,
@@ -105,14 +118,14 @@ contract FixedPriceAuction is Ownable {
         );
     }
 
-    function depositAuctionTokens() public {
+    function depositAuctionTokens() public onlyIdoManager() {
         require(
             auctionState == States.Initialized,
-            "EasyAuction: Already deposited tokens"
+            "FixedPriceAuction: Invalid State"
         );
 
         // deposit sellAmount + fees
-        auctionState = States.TokensDeposited;
+        auctionState = States.Open;
         tokenOut.safeTransferFrom(
             msg.sender,
             address(this),
@@ -120,7 +133,7 @@ contract FixedPriceAuction is Ownable {
         );
     }
 
-    function buyToken(uint256 amount) public {
+    function buyTokens(uint256 amount) public {
         require(
             !hasWhitelisting || isWhitelisted[msg.sender],
             "EasyAuction: forbidden"
@@ -139,6 +152,30 @@ contract FixedPriceAuction is Ownable {
         emit NewPurchase(msg.sender, amount);
     }
 
+    function closeAuction() public {
+        require(auctionState == States.Open, "EasyAuction: invalid status");
+        require(block.timestamp > endDate, "EasyAuction: endDate not passed");
+        require(
+            tokensSold >= minimumRaise,
+            "EasyAuction: minumumRaise not reached"
+        );
+        auctionState = States.Closed;
+    }
+
+    function releaseTokens() public {
+        require(minimumRaise > 0, "EasyAuction: no minumumRaise");
+        require(block.timestamp > endDate, "EasyAuction: endDate not passed");
+        require(
+            tokensSold < minimumRaise,
+            "EasyAuction: minumumRaise not reached"
+        );
+
+        uint256 tokensAmount = tokensPurchased[msg.sender];
+        tokensPurchased[msg.sender] = 0;
+        auctionState = States.Closed;
+        tokenIn.safeTransferFrom(msg.sender, address(this), tokensAmount);
+    }
+
     function claimTokens() public {
         require(
             auctionState == States.Closed,
@@ -154,14 +191,14 @@ contract FixedPriceAuction is Ownable {
         emit NewTokenClaim(msg.sender, purchasedTokens);
     }
 
-    function claimFees() internal {
+    function claimFees() external {
         require(
             auctionState == States.Closed,
             "EasyAuction: auction not closed"
         );
 
         tokenOut.safeTransfer(
-            IEasyAuctionFactory(auctionFactory).feeTo(),
+            IEasyAuctionFactory(idoCreator).feeTo(),
             tokensForSale
                 .mul(FEE_DENOMINATOR.add(fee))
                 .div(FEE_DENOMINATOR)
@@ -170,6 +207,11 @@ contract FixedPriceAuction is Ownable {
     }
 
     function withdrawFunds() external {
+        require(
+            auctionState == States.Closed,
+            "EasyAuction: auction not closed"
+        );
+
         TransferHelper.safeTransfer(
             address(tokenIn),
             fundsReceiver,
@@ -178,6 +220,11 @@ contract FixedPriceAuction is Ownable {
     }
 
     function withdrawUnsoldFunds() external {
+        require(
+            auctionState == States.Closed,
+            "EasyAuction: auction not closed"
+        );
+
         TransferHelper.safeTransfer(
             address(tokenOut),
             fundsReceiver,
@@ -185,7 +232,10 @@ contract FixedPriceAuction is Ownable {
         );
     }
 
-    function ERC20Withdraw(address token, uint256 amount) external {
+    function ERC20Withdraw(address token, uint256 amount)
+        external
+        onlyIdoManager()
+    {
         require(
             auctionState == States.Closed,
             "EasyAuction: auction not closed"
@@ -193,7 +243,7 @@ contract FixedPriceAuction is Ownable {
         TransferHelper.safeTransfer(token, fundsReceiver, amount);
     }
 
-    function ETHWithdraw(uint256 amount) external {
+    function ETHWithdraw(uint256 amount) external onlyIdoManager() {
         require(
             auctionState == States.Closed,
             "EasyAuction: auction not closed"
