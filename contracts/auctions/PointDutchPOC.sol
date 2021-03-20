@@ -214,33 +214,61 @@ contract PointDutch is Ownable {
     }
 
     // @dev function settling the auction with a clearingOrder
-    // this function only test the clearingPrice, no token are distributed
-    function setClearingPrice(offChainClearingPrice, offChainRemainder)
+    // this function only test the clearingPrice, if test is true, clearingPrice is set, should only be callable once.
+    function setClearingPrice(uint256 offChainClearingPrice, uint256 offChainRemainder)
         public
         atStageSolutionSubmission()
-        returns (bytes32 clearingOrder)
+        returns (bytes32 clearingPrice)
     {
-        tokenOutAmountToDistribute = tokenOutAmount;
+        uint256 tokenOutAmountToDistribute = tokenOutAmount;
+        uint256 equalPriceOrderSum = 0;
 
         // loop over every order
+        // thing to consider
+        // offChainRemainder can be zero if at order having the clearingPrice in the sum of orderTokenIn == previousTokenOutAmountToDistribute
+        // we may have severall orders which can have the same price as the clearing price
         for (uint256 i = 0; i < orderIds.length; i++) {
-            _orderId = orderIds[i];
-            _orderTokenOut = orders[orderId].orderTokenOut;
-            _orderTokenIn = orders[orderId].orderTokenIn;
+            uint256 _orderId = orderIds[i];
+            uint256 _orderTokenOut = orders[orderId].orderTokenOut;
+            uint256 _orderTokenIn = orders[orderId].orderTokenIn;
 
-            price = _orderTokenOut.div(_orderTokenIn);
+            uint256  price = _orderTokenOut.div(_orderTokenIn);
 
-            if (price >= offChainClearingPrice) {
+            // substract from stack (tokenOutAmount) to orders above settelment price 
+            if (price > offChainClearingPrice) {
                 tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
-                # if all token gone, distribut the remainder
-                if (tokenOutAmountToDistribute < 0){
-                   if (offChainRemainder == previousTokenOutAmountToDistribute){
+            } else if (price == offChainClearingPrice){
+                // sum all orders equal settelment price
+                equalPriceOrderSum = equalPriceOrderSum + _orderTokenOut;
+                // if all token gone from tokenOutAmount, distribut the remainder
+                // is the first this needed?
+                if (tokenOutAmountToDistribute <= 0){
+                
+                   if (offChainRemainder == equalPriceOrderSum){
+                    // for this the sum the orderTokenOut having price = offChainClearingPrice is needed, this is not going work as it is now,  if severall bids have the same price
                         clearingPrice = offChainClearingPrice;
                         emit settleSucess('yea');
+                        return clearingPrice; // ??? nico 
                    }
                 }
             }
-            previousTokenOutAmountToDistribute = tokenOutAmountToDistribute
+
+            // old version with previousTokenOutAmountToDistribute
+            // substract from stack (tokenOutAmount) to orders above or equal settelment price 
+            if (price >= offChainClearingPrice) {
+                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
+                // if all token gone from tokenOutAmount, distribut the remainder
+                if (tokenOutAmountToDistribute < 0){
+                
+                   if (offChainRemainder == previousTokenOutAmountToDistribute){
+                    // for this the sum the orderTokenOut having price = offChainClearingPrice is needed, this is not going work as it is now,  if severall bids have the same price
+                        clearingPrice = offChainClearingPrice;
+                        emit settleSucess('yea');
+                        return clearingPrice; // ??? nico 
+                   }
+                }
+            }
+            previousTokenOutAmountToDistribute = tokenOutAmountToDistribute;
         }
 
         if (tokenOutAmountToDistribute < 1 and tokenOutAmountToDistribute > -1){
@@ -252,7 +280,7 @@ contract PointDutch is Ownable {
             emit settleSucess('ney');
         }
     }
-
+    // ??? nico: does not return anything
     function registerUser(address user) public returns (uint64 ownerId) {
         numUsers = numUsers.add(1).toUint64();
         require(
