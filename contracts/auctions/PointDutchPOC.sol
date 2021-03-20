@@ -28,21 +28,33 @@ contract PointDutch is Ownable {
         _;
     }
 
+    event NewOrder(
+        uint64 indexed ownerId,
+        uint96 orderTokenOut,
+        uint96 orderTokenIn
+    );
+    event ClaimedFromOrder(
+        uint64 indexed ownerId,
+        uint96 orderTokenOut,
+        uint96 orderTokenIn
+    );
 
+    event NewUser(
+        uint64 indexed ownerId, 
+        address indexed userAddress
+    );
 
-    event NewUser(uint64 indexed ownerId, address indexed userAddress);
     event InitializedAuction(
         IERC20 indexed _tokenIn,
         IERC20 indexed _tokenOut,
         uint256 orderCancellationEndDate,
-        uint96 _tokenOutAmount,
+        uint96 _orderTokenOut,
         uint96 _minBidAmountToReceive,
         uint256 minimumBiddingAmountPerOrder,
         uint256 minSellThreshold
     );
     event UserRegistration(address indexed user, uint64 bidOwner);
 
-  
     struct Order {
         address ownerId;
         uint96 _orderTokenOut;
@@ -59,7 +71,7 @@ contract PointDutch is Ownable {
     IERC20 public tokenIn;
     IERC20 public tokenOut;
     uint256 public orderCancellationEndDate;
-    uint96 public tokenOutAmount;
+    uint96 public orderTokenOut;
     uint96 public minBidAmountToReceive;
     uint256 public minimumBiddingAmountPerOrder;
     uint256 public minSellThreshold;
@@ -159,69 +171,52 @@ contract PointDutch is Ownable {
     // why here? @nico
     uint256 public constant FEE_DENOMINATOR = 1000;
     uint64 public feeReceiverOwnerId = 1;
-
+    //?? memory and why array?
     function placeOrders(
-        uint96[] memory _tokenInAmount, // amounts_To_Buy
-        uint96[] memory _tokenOutAmount, // amounts_To_Bid
+        uint96[] memory _orderTokenIn, // amounts_To_Buy
+        uint96[] memory _orderTokenOut, // amounts_To_Bid
     ) internal returns (uint64 ownerId) {
 
         uint256 sumOfAmountsToBid = 0;
 
         ownerId = getOwnerId(msg.sender);
         uint256 newOrderId = orderId++;
-
         orders[newOrderId] = Order(ownerId, orderTokenOut,  orderTokenIn);
+        // for looping
         orderIds.push(newOrderId);
 
+        sumOfAmountsToBid = sumOfAmountsToBid.add(_orderTokenIn);
 
-        orders[].ownerId = ownerId;
-        orders[].tokenInAmount = _tokenInAmount;
-        orders[].tokenOutAmount = _tokenOutAmount;
-
-        sumOfAmountsToBid = sumOfAmountsToBid.add(_tokenOutAmount);
+        emit NewOrder(ownerId, _orderTokenOut, _orderTokenIn);
 
         tokenIn.safeTransferFrom(
             msg.sender,
             address(this),
-            _tokenInAmount
-        );
+            _orderTokenIn
+        ); //[1]
 
-        // ???
-        for (uint256 i = 0; i < _tokenInAmount.length; i++) {
-            require(_tokenInAmount[i].mul(minAmountToReceive) < tokenOutAmount.mul(_orderTokenIn[i]),
+        // ??? why arrary? old stuff from EA
+        for (uint256 i = 0; i < _orderTokenIn.length; i++) {
+            require(_orderTokenIn[i].mul(minAmountToReceive) < orderTokenOut.mul(_orderTokenIn[i]),
                 "limit price not better than mimimal offer"
             );
             // _orders should have a minimum bid size in order to limit the gas
             // required to compute the final price of the auction.
             require(
-                _tokenOutAmount[i] > minimumBiddingAmountPerOrder,
+                _orderTokenOut[i] > minimumBiddingAmountPerOrder,
                 "order too small"
             );
-            bool success =
-                orders.insert(
-                    IterableOrderedOrderSet.encodeOrder(
-                        ownerId,
-                        _orderTokenOut[i],
-                        _orderTokenIn[i]
-                    ),
-                    _prevOrders[i],
-                );
             if (success) {
                 sumOfAmountsToBid = sumOfAmountsToBid.add(_orderTokenIn[i]);
                 emit NewOrder(ownerId, _orderTokenOut[i], _orderTokenIn[i]);
             }
         }
-        tokenIn.safeTransferFrom(
-            msg.sender,
-            address(this),
-            sumOfAmountsToBid
-        ); //[1]
     }
 
     // @dev function settling the auction with a clearingOrder
     // this function only test the clearingPrice, no token are distributed
     function settleAuction(bytes32 clearingOrder) public atStageSolutionSubmission() returns (bytes32 clearingOrder) {
-        tokenOutAmountToDistribute = tokenOutAmount;
+        orderTokenOutToDistribute = tokenOutAmount;
 
         // loop over every order
         for (uint256 i = 0; i < orderIds.length; i++) {
@@ -233,15 +228,15 @@ contract PointDutch is Ownable {
             price = _orderTokenOut.div(_orderTokenIn);
 
             if (price >= clearingPrice) {
-                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
+                orderTokenOutToDistribute = orderTokenOutToDistribute - _orderTokenOut;
             }
         }
-        if (tokenOutAmountToDistribute < 1 and tokenOutAmountToDistribute > -1){
+        if (orderTokenOutToDistribute < 1 and orderTokenOutToDistribute > -1){
             // change var clearingPriceOrder
             clearingPriceOrder = clearingPrice;
             emit settleSucess('yea');
         // overlapping if?
-        } else if (tokenOutAmountToDistribute > 0 || tokenOutAmountToDistribute < 0){
+        } else if (orderTokenOutToDistribute > 0 || orderTokenOutToDistribute < 0){
             emit settleSucess('ney');
         }
     }

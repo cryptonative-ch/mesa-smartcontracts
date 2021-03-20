@@ -10,6 +10,8 @@ sed -i 's/minFundingThreshold/minSellThreshold/g' *.sol *.spec.ts
 
 sed -i 's/amountToSell/tokenOutAmount/g' *.sol *.spec.ts
 
-sed -i 's/amountsToBuy/orderTokenOut/g' *.sol *.spec.ts
-sed -i 's/amountsToBid/orderTokenIn/g' *.sol *.spec.ts
+sed -i 's/amountToBuy/orderTokenOut/g' *.sol *.spec.ts
+sed -i 's/amountToBid/orderTokenIn/g' *.sol *.spec.ts
+
+sed -i 's/userId/ownerId/g' *.sol *.spec.ts
 
