@@ -35,18 +35,18 @@ contract PointDutch is Ownable {
         IERC20 indexed _tokenIn,
         IERC20 indexed _tokenOut,
         uint256 orderCancellationEndDate,
-        uint96 _amountToSell,
+        uint96 _tokenOutAmount,
         uint96 _minBidAmountToReceive,
         uint256 minimumBiddingAmountPerOrder,
-        uint256 minFundingThreshold
+        uint256 minSellThreshold
     );
     event UserRegistration(address indexed user, uint64 bidOwner);
 
   
     struct Order {
         address ownerId;
-        uint96 _amountToBuy;
-        uint96 _amountsToBid;
+        uint96 _orderTokenOut;
+        uint96 _orderTokenIn;
     }
 
     uint256 orderId;
@@ -59,16 +59,16 @@ contract PointDutch is Ownable {
     IERC20 public tokenIn;
     IERC20 public tokenOut;
     uint256 public orderCancellationEndDate;
-    uint96 public amountToSell;
+    uint96 public tokenOutAmount;
     uint96 public minBidAmountToReceive;
     uint256 public minimumBiddingAmountPerOrder;
-    uint256 public minFundingThreshold;
+    uint256 public minSellThreshold;
     uint256 public auctionStartedDate;
     uint256 public auctionEndDate;
     uint256 public interimSumBidAmount;
     bytes32 public clearingPriceOrder;
     uint96 public volumeClearingPriceOrder;
-    bool public minFundingThresholdNotReached;
+    bool public minSellThresholdNotReached;
 
     // to be used as ID counter Todo: change name
     uint64 public numUsers;
@@ -98,25 +98,25 @@ contract PointDutch is Ownable {
     // Prices between tokenIn and tokenOut are expressed by a
     // fraction whose components are stored as uint96.
     function initAuction(
-        IERC20 _tokenIn, // nico did swich them in fix priced, old name biddingToken
+        IERC20 _tokenIn, // nico did swich them in fix priced, old name tokenIn
         IERC20 _tokenOut,
         uint256 _orderCancelationPeriodDuration,
-        uint96 _amountToSell, // total amount to sell
+        uint96 _tokenOutAmount, // total amount to sell
         uint96 _minBidAmountToReceive, // Minimum amount of biding token to receive at final point
         uint256 _minimumBiddingAmountPerOrder,
-        uint256 _minFundingThreshold
+        uint256 _minSellThreshold
     ) public {
         uint64 OwnerId = getOwnerId(msg.sender);
 
-        // deposits _amountToSell + fees
+        // deposits _tokenOutAmount + fees
         _tokenOut.safeTransferFrom(
             msg.sender,
             address(this),
-            _amountToSell.mul(FEE_DENOMINATOR.add(feeNumerator)).div(
+            _tokenOutAmount.mul(FEE_DENOMINATOR.add(feeNumerator)).div(
                 FEE_DENOMINATOR
             ) //[0]
         );
-        require(_amountToSell > 0, "cannot auction zero tokens");
+        require(_tokenOutAmount > 0, "cannot auction zero tokens");
         require(
             _minBidAmountToReceive > 0,
             "tokens cannot be auctioned for free"
@@ -132,10 +132,10 @@ contract PointDutch is Ownable {
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
         orderCancellationEndDate = cancellationEndDate;
-        amountToSell = _amountToSell;
+        tokenOutAmount = _tokenOutAmount;
         minBidAmountToReceive = _minBidAmountToReceive;
         minimumBiddingAmountPerOrder = _minimumBiddingAmountPerOrder;
-        minFundingThreshold = _minFundingThreshold;
+        minSellThreshold = _minSellThreshold;
 
         // other init vars
         auctionStartedDate = block.timestamp;
@@ -143,16 +143,16 @@ contract PointDutch is Ownable {
         interimSumBidAmount = 0;
         clearingPriceOrder = bytes32(0);
         volumeClearingPriceOrder = 0;
-        minFundingThresholdNotReached = false;
+        minSellThresholdNotReached = false;
  
         emit InitializedAuction(
             _tokenIn,
             _tokenOut,
             orderCancellationEndDate,
-            _amountToSell,
+            _tokenOutAmount,
             _minBidAmountToReceive,
             _minimumBiddingAmountPerOrder,
-            _minFundingThreshold
+            _minSellThreshold
         );
     }
 
@@ -165,17 +165,17 @@ contract PointDutch is Ownable {
         uint96[] memory _tokenOutAmount, // amounts_To_Bid
     ) internal returns (uint64 OwnerId) {
         // not general accassible the vars, from init
-        //(, uint96 amountToSell, uint96 minAmountToReceive) = initialAuctionOrder.decodeOrder();
+        //(, uint96 tokenOutAmount, uint96 minAmountToReceive) = initialAuctionOrder.decodeOrder();
 
         uint256 sumOfAmountsToBid = 0;
         OwnerId = getOwnerId(msg.sender);
 
         // order
 
-    function placeOrders(uint96 amountToBuy, uint96 amountsToBid){
+    function placeOrders(uint96 orderTokenOut, uint96 orderTokenIn){
 
         uint256 newOrderId = orderId++;
-        orders[newOrderId] = Order(msg.sender, amountToBuy,  amountsToBid);
+        orders[newOrderId] = Order(msg.sender, orderTokenOut,  orderTokenIn);
         orderIds.push(newOrderId);
 
     }
@@ -194,7 +194,7 @@ contract PointDutch is Ownable {
 
         // ???
         for (uint256 i = 0; i < _tokenInAmount.length; i++) {
-            require(_tokenInAmount[i].mul(minAmountToReceive) < amountToSell.mul(_amountsToBid[i]),
+            require(_tokenInAmount[i].mul(minAmountToReceive) < tokenOutAmount.mul(_orderTokenIn[i]),
                 "limit price not better than mimimal offer"
             );
             // _orders should have a minimum bid size in order to limit the gas
@@ -207,14 +207,14 @@ contract PointDutch is Ownable {
                 orders.insert(
                     IterableOrderedOrderSet.encodeOrder(
                         OwnerId,
-                        _amountsToBuy[i],
-                        _amountsToBid[i]
+                        _orderTokenOut[i],
+                        _orderTokenIn[i]
                     ),
                     _prevOrders[i],
                 );
             if (success) {
-                sumOfAmountsToBid = sumOfAmountsToBid.add(_amountsToBid[i]);
-                emit NewOrder(OwnerId, _amountsToBuy[i], _amountsToBid[i]);
+                sumOfAmountsToBid = sumOfAmountsToBid.add(_orderTokenIn[i]);
+                emit NewOrder(OwnerId, _orderTokenOut[i], _orderTokenIn[i]);
             }
         }
         tokenIn.safeTransferFrom(
@@ -233,13 +233,13 @@ contract PointDutch is Ownable {
         for (uint256 i = 0; i < orderIds.length; i++) {
 
             _orderId = orderIds[i];
-            _amountToBuy = orders[orderId].amountToBuy;
-            _amountsToBid = orders[orderId].amountsToBid;
+            _orderTokenOut = orders[orderId].orderTokenOut;
+            _orderTokenIn = orders[orderId].orderTokenIn;
 
-            price = _amountToBuy.div(_amountsToBid);
+            price = _orderTokenOut.div(_orderTokenIn);
 
             if (price >= clearingPrice) {
-                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _amountToBuy;
+                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
             }
         }
         if (tokenOutAmountToDistribute < 1 and tokenOutAmountToDistribute > -1){
