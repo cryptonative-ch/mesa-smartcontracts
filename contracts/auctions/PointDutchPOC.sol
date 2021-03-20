@@ -30,7 +30,7 @@ contract PointDutch is Ownable {
 
 
 
-    event NewUser(uint64 indexed OwnerId, address indexed userAddress);
+    event NewUser(uint64 indexed ownerId, address indexed userAddress);
     event InitializedAuction(
         IERC20 indexed _tokenIn,
         IERC20 indexed _tokenOut,
@@ -106,7 +106,7 @@ contract PointDutch is Ownable {
         uint256 _minimumBiddingAmountPerOrder,
         uint256 _minSellThreshold
     ) public {
-        uint64 OwnerId = getOwnerId(msg.sender);
+        uint64 ownerId = getOwnerId(msg.sender);
 
         // deposits _tokenOutAmount + fees
         _tokenOut.safeTransferFrom(
@@ -163,24 +163,18 @@ contract PointDutch is Ownable {
     function placeOrders(
         uint96[] memory _tokenInAmount, // amounts_To_Buy
         uint96[] memory _tokenOutAmount, // amounts_To_Bid
-    ) internal returns (uint64 OwnerId) {
-        // not general accassible the vars, from init
-        //(, uint96 tokenOutAmount, uint96 minAmountToReceive) = initialAuctionOrder.decodeOrder();
+    ) internal returns (uint64 ownerId) {
 
         uint256 sumOfAmountsToBid = 0;
-        OwnerId = getOwnerId(msg.sender);
 
-        // order
-
-    function placeOrders(uint96 orderTokenOut, uint96 orderTokenIn){
-
+        ownerId = getOwnerId(msg.sender);
         uint256 newOrderId = orderId++;
-        orders[newOrderId] = Order(msg.sender, orderTokenOut,  orderTokenIn);
+
+        orders[newOrderId] = Order(ownerId, orderTokenOut,  orderTokenIn);
         orderIds.push(newOrderId);
 
-    }
 
-        orders[].OwnerId = OwnerId;
+        orders[].ownerId = ownerId;
         orders[].tokenInAmount = _tokenInAmount;
         orders[].tokenOutAmount = _tokenOutAmount;
 
@@ -206,7 +200,7 @@ contract PointDutch is Ownable {
             bool success =
                 orders.insert(
                     IterableOrderedOrderSet.encodeOrder(
-                        OwnerId,
+                        ownerId,
                         _orderTokenOut[i],
                         _orderTokenIn[i]
                     ),
@@ -214,7 +208,7 @@ contract PointDutch is Ownable {
                 );
             if (success) {
                 sumOfAmountsToBid = sumOfAmountsToBid.add(_orderTokenIn[i]);
-                emit NewOrder(OwnerId, _orderTokenOut[i], _orderTokenIn[i]);
+                emit NewOrder(ownerId, _orderTokenOut[i], _orderTokenIn[i]);
             }
         }
         tokenIn.safeTransferFrom(
@@ -252,23 +246,23 @@ contract PointDutch is Ownable {
         }
     }
 
-    function registerUser(address user) public returns (uint64 OwnerId) {
+    function registerUser(address user) public returns (uint64 ownerId) {
         numUsers = numUsers.add(1).toUint64();
         require(
             registeredUsers.insert(numUsers, user),
             "User already registered"
         );
         // less gas if no = here?
-        OwnerId = numUsers;
-        emit UserRegistration(user, OwnerId);
+        ownerId = numUsers;
+        emit UserRegistration(user, ownerId);
     }
 
-    function getOwnerId(address user) public returns (uint64 OwnerId) {
+    function getOwnerId(address user) public returns (uint64 ownerId) {
         if (registeredUsers.hasAddress(user)) {
-            OwnerId = registeredUsers.getId(user);
+            ownerId = registeredUsers.getId(user);
         } else {
-            OwnerId = registerUser(user);
-            emit NewUser(OwnerId, user);
+            ownerId = registerUser(user);
+            emit NewUser(ownerId, user);
         }
     }
 
