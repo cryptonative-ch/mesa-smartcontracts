@@ -215,28 +215,40 @@ contract PointDutch is Ownable {
 
     // @dev function settling the auction with a clearingOrder
     // this function only test the clearingPrice, no token are distributed
-    function settleAuction(bytes32 clearingOrder) public atStageSolutionSubmission() returns (bytes32 clearingOrder) {
-        orderTokenOutToDistribute = tokenOutAmount;
+    function setClearingPrice(offChainClearingPrice, offChainRemainder)
+        public
+        atStageSolutionSubmission()
+        returns (bytes32 clearingOrder)
+    {
+        tokenOutAmountToDistribute = tokenOutAmount;
 
         // loop over every order
         for (uint256 i = 0; i < orderIds.length; i++) {
-
             _orderId = orderIds[i];
             _orderTokenOut = orders[orderId].orderTokenOut;
             _orderTokenIn = orders[orderId].orderTokenIn;
 
             price = _orderTokenOut.div(_orderTokenIn);
 
-            if (price >= clearingPrice) {
-                orderTokenOutToDistribute = orderTokenOutToDistribute - _orderTokenOut;
+            if (price >= offChainClearingPrice) {
+                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
+                # if all token gone, distribut the remainder
+                if (tokenOutAmountToDistribute < 0){
+                   if (offChainRemainder == previousTokenOutAmountToDistribute){
+                        clearingPrice = offChainClearingPrice;
+                        emit settleSucess('yea');
+                   }
+                }
             }
+            previousTokenOutAmountToDistribute = tokenOutAmountToDistribute
         }
-        if (orderTokenOutToDistribute < 1 and orderTokenOutToDistribute > -1){
+
+        if (tokenOutAmountToDistribute < 1 and tokenOutAmountToDistribute > -1){
             // change var clearingPriceOrder
             clearingPriceOrder = clearingPrice;
             emit settleSucess('yea');
         // overlapping if?
-        } else if (orderTokenOutToDistribute > 0 || orderTokenOutToDistribute < 0){
+        } else if (tokenOutAmountToDistribute > 0 || tokenOutAmountToDistribute < 0){
             emit settleSucess('ney');
         }
     }
