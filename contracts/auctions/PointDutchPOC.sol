@@ -55,11 +55,16 @@ contract PointDutch is Ownable {
     );
     event UserRegistration(address indexed user, uint64 bidOwner);
 
+    // https://medium.com/wolverineblockchain/common-questions-for-the-curious-in-solidity-5d40b5d38dc2
+    // nico??
     struct Order {
-        address ownerId;
+        address ownerId; // 160 bits
         uint96 _orderTokenOut;
         uint96 _orderTokenIn;
     }
+    // total 160+96+96 = 352
+    // 160+48+48 = 256  48 bits 281,474,976,710,656 valus
+    // 1 eth = 1,000,000,000,000,000,000 wei
 
     uint256 orderId;
     
@@ -214,73 +219,59 @@ contract PointDutch is Ownable {
     }
 
     // @dev function settling the auction with a clearingOrder
-    // this function only test the clearingPrice, if test is true, clearingPrice is set, should only be callable once.
-    function setClearingPrice(uint256 offChainClearingPrice, uint256 offChainRemainder)
+    // this function only test the clearingPrice, if test is true, clearingPrice is set, should only be callable once. 
+    // Todo Make it only callable once, if clearingPrice not set
+    function setClearingPrice(uint256 offChainClearingPrice)
         public
         atStageSolutionSubmission()
         returns (bytes32 clearingPrice)
     {
         uint256 tokenOutAmountToDistribute = tokenOutAmount;
-        uint256 equalPriceOrderSum = 0;
+        uint256 equalClearingPriceOrderSum = 0;
 
         // loop over every order
         // thing to consider
-        // offChainRemainder can be zero if at order having the clearingPrice in the sum of orderTokenIn == previousTokenOutAmountToDistribute
         // we may have severall orders which can have the same price as the clearing price
         for (uint256 i = 0; i < orderIds.length; i++) {
             uint256 _orderId = orderIds[i];
             uint256 _orderTokenOut = orders[orderId].orderTokenOut;
             uint256 _orderTokenIn = orders[orderId].orderTokenIn;
 
+            // ??? can this be a int, has to be float?
             uint256  price = _orderTokenOut.div(_orderTokenIn);
 
             // substract from stack (tokenOutAmount) to orders above settelment price 
             if (price > offChainClearingPrice) {
                 tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
-            } else if (price == offChainClearingPrice){
-                // sum all orders equal settelment price
-                equalPriceOrderSum = equalPriceOrderSum + _orderTokenOut;
-                // if all token gone from tokenOutAmount, distribut the remainder
-                // is the first this needed?
-                if (tokenOutAmountToDistribute <= 0){
-                
-                   if (offChainRemainder == equalPriceOrderSum){
-                    // for this the sum the orderTokenOut having price = offChainClearingPrice is needed, this is not going work as it is now,  if severall bids have the same price
-                        clearingPrice = offChainClearingPrice;
-                        emit settleSucess('yea');
-                        return clearingPrice; // ??? nico 
-                   }
-                }
-            }
 
-            // old version with previousTokenOutAmountToDistribute
-            // substract from stack (tokenOutAmount) to orders above or equal settelment price 
-            if (price >= offChainClearingPrice) {
-                tokenOutAmountToDistribute = tokenOutAmountToDistribute - _orderTokenOut;
-                // if all token gone from tokenOutAmount, distribut the remainder
+                // if all token gone too early, then ClearingPrice too low
                 if (tokenOutAmountToDistribute < 0){
-                
-                   if (offChainRemainder == previousTokenOutAmountToDistribute){
-                    // for this the sum the orderTokenOut having price = offChainClearingPrice is needed, this is not going work as it is now,  if severall bids have the same price
-                        clearingPrice = offChainClearingPrice;
-                        emit settleSucess('yea');
-                        return clearingPrice; // ??? nico 
-                   }
+                    emit settleSucess(false);
                 }
-            }
-            previousTokenOutAmountToDistribute = tokenOutAmountToDistribute;
-        }
 
-        if (tokenOutAmountToDistribute < 1 and tokenOutAmountToDistribute > -1){
-            // change var clearingPriceOrder
-            clearingPriceOrder = clearingPrice;
-            emit settleSucess('yea');
-        // overlapping if?
-        } else if (tokenOutAmountToDistribute > 0 || tokenOutAmountToDistribute < 0){
-            emit settleSucess('ney');
+            } else if (price == offChainClearingPrice){
+                // set priceNumerator / priceDenominator
+                if (equalClearingPriceOrderSum == 0){
+                    priceNumerator = _orderTokenOut;
+                    priceDenominator = _orderTokenIn;
+                }
+                // sum all orders equal settelment price
+                // possible doss to set all bids to offChainClearingPrice
+                equalClearingPriceOrderSum = equalClearingPriceOrderSum + _orderTokenOut;
+            }
+        } 
+        // still token left on ClearingPrice, then ClearingPrice is too high  () > or >= ???)
+        if (tokenOutAmountToDistribute - equalClearingPriceOrderSum > 0){
+                emit settleSucess(false);
         }
+        // if not stopped here, clearingPrice is the right solution
+
+
+        clearingPrice = offChainClearingPrice;
+        emit settleSucess(true);
+        return clearingPrice; // ??? nico       
     }
-    // ??? nico: does not return anything
+
     function registerUser(address user) public returns (uint64 ownerId) {
         numUsers = numUsers.add(1).toUint64();
         require(
