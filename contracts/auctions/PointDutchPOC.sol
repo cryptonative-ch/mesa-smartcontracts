@@ -218,6 +218,35 @@ contract PointDutch is Ownable {
         }
     }
 
+    // input is array with orders id to cancel?
+    // how this ids find in the fe? (??? nico)
+    function cancelOrders(bytes32[] memory _orders)
+        public
+        atStageOrderPlacementAndCancelation()
+    {
+        uint64 ownerId = getUserId(msg.sender);
+        uint256 claimableAmount = 0;
+        // ?? nico, I cant loop over all orders to get the right orders, this is too expensiv
+
+        for (uint256 i = 0; i < _orders.length; i++) {
+            uint96 orderId = _orders[i];
+            // get as single value?
+            uint96 orderTokenIn = orderIds[orderId].orderTokenIn;
+            // or like this? (nico??)
+            //(uint64 ownerId, uint96 orderTokenOut, uint96 orderTokenIn) = orderIds[orderId];
+            require(
+                    orderIds[orderId].ownerId == ownerId,
+                    "Only the user can cancel his orders"
+            );
+            claimableAmount = claimableAmount.add(orderTokenIn);
+            emit CancellationOrder(ownerId, orderTokenOut, orderTokenIn);
+        }
+        // https://ethereum.stackexchange.com/questions/13167/are-there-well-solved-and-simple-storage-patterns-for-solidity
+        // remove from order array, looks like this this is only possible by move the value at the end of the array and then shorten the array by -1
+        orderIds[orderId] // Todo remove from orderIds
+        tokenIn.safeTransfer(msg.sender, claimableAmount); //[2]
+    }
+
     // @dev function settling the auction with a clearingOrder
     // this function only test the clearingPrice, if test is true, clearingPrice is set, should only be callable once. 
     // Todo Make it only callable once, if clearingPrice not set
