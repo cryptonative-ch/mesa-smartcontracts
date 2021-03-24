@@ -29,6 +29,8 @@ contract FixedPriceAuction {
 
     event NewTokenClaim(address indexed buyer, uint256 indexed amount);
 
+    event distributeAllTokensDone(uint256 indexed amount);
+
     event NewTokenRelease(address indexed buyer, uint256 indexed amount);
 
     event AuctionClosed();
@@ -48,6 +50,8 @@ contract FixedPriceAuction {
     bool public isClosed;
 
     mapping(address => uint256) public tokensPurchased;
+
+    address[] public orderOwners;
 
     modifier onlyOwner {
         require(msg.sender == owner, "FixedPriceAuction: FORBIDDEN");
@@ -176,6 +180,8 @@ contract FixedPriceAuction {
             "FixedPriceAuction: auction deadline passed"
         );
         tokenIn.safeTransferFrom(msg.sender, address(this), amount);
+        orderOwners.push(msg.sender);
+        // ?? what if the same person buys token more than once
         tokensPurchased[msg.sender] = amount;
         tokensSold = tokensSold.add(amount);
         emit NewPurchase(msg.sender, amount);
@@ -234,6 +240,26 @@ contract FixedPriceAuction {
             purchasedTokens
         );
         emit NewTokenClaim(msg.sender, purchasedTokens);
+    }
+
+   /// @dev let everyone distribute token to the investors
+   /// todo optimisation: delete from orderOwners on tokenClaim()
+    function distributeAllTokens() public {
+        require(isClosed, "FixedPriceAuction: auction not closed");
+        for (uint256 i = 0; i < orderOwners.length; i++) {
+            address _orderOwner = orderOwners[i];
+            if (tokensPurchased[_orderOwner] > 0){
+                uint256 _purchasedTokens = tokensPurchased[_orderOwner];
+                tokensPurchased[_orderOwner] = 0;
+                TransferHelper.safeTransfer(
+                    address(tokenOut),
+                    _orderOwner,
+                    _purchasedTokens
+                );
+            }
+        } // for
+        // optimisation: delete orderOwners
+        emit distributeAllTokensDone(orderOwners.length);
     }
 
     /// @dev withdraw collected funds

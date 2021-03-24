@@ -82,6 +82,7 @@ describe("FixedPriceAuction", async () => {
 
         await tokenA.mint(user_1.address, BigNumber.from(10).pow(30));
         await tokenB.mint(user_1.address, BigNumber.from(10).pow(30));
+
         await tokenB.approve(auctionIntialized.address, defaultTokensForSale);
 
         const initData = await encodeInitData(
@@ -616,6 +617,99 @@ describe("FixedPriceAuction", async () => {
             await expect(fixedPriceAuction.claimTokens())
                 .to.emit(fixedPriceAuction, "NewTokenClaim")
                 .withArgs(user_1.address, expandTo18Decimals(10));
+        });
+/*
+       it("allows distribut all tokens after auction closing", async () => {
+            tokenB.approve(fixedPriceAuction.address, defaultTokensForSale);
+
+            const initData = await encodeInitData(
+                tokenA.address,
+                tokenB.address,
+                defaultTokenPrice,
+                defaultTokensForSale,
+                defaultStartDate,
+                defaultEndDate,
+                defaultAllocationMin,
+                defaultAllocationMax,
+                expandTo18Decimals(0),
+                user_1.address
+            );
+
+            await fixedPriceAuction.init(initData);
+            await tokenA.approve(
+                fixedPriceAuction.address,
+                expandTo18Decimals(10)
+            );
+
+            await tokenA.mint(user_2.address, BigNumber.from(10).pow(30));
+            await tokenB.mint(user_2.address, BigNumber.from(10).pow(30));
+
+            await tokenB.approve(
+                fixedPriceAuction.address,
+                expandTo18Decimals(10)
+            );
+
+            await tokenA.approve(
+                user_2.address,
+                expandTo18Decimals(10)
+            );
+
+            await tokenB.approve(
+                user_2.address,
+                expandTo18Decimals(10)
+            );
+
+            await fixedPriceAuction.buyTokens(expandTo18Decimals(10));
+
+            //await fixedPriceAuction.connect(user_2).approve(
+            //    fixedPriceAuction.address,
+            //    expandTo18Decimals(5)
+            //);
+
+            //console.log("Decimal", tokenA.balanceOf(user_2.address));
+
+            await fixedPriceAuction.connect(user_2).buyTokens(expandTo18Decimals(10));
+
+            await mineBlock(defaultEndDate + 100);
+
+            await fixedPriceAuction.closeAuction();
+
+            await expect(fixedPriceAuction.distributeAllTokens())
+                .to.emit(fixedPriceAuction, "distributeAllTokensDone")
+                .withArgs('2');
+        });
+*/
+        it("allows distribut all tokens after auction closing", async () => {
+            tokenB.approve(fixedPriceAuction.address, defaultTokensForSale);
+
+            const initData = await encodeInitData(
+                tokenA.address,
+                tokenB.address,
+                defaultTokenPrice,
+                defaultTokensForSale,
+                defaultStartDate,
+                defaultEndDate,
+                defaultAllocationMin,
+                defaultAllocationMax,
+                expandTo18Decimals(0),
+                user_1.address
+            );
+
+            await fixedPriceAuction.init(initData);
+            await tokenA.approve(
+                fixedPriceAuction.address,
+                expandTo18Decimals(10)
+            );
+
+            await fixedPriceAuction.buyTokens(expandTo18Decimals(10));
+
+            await mineBlock(defaultEndDate + 100);
+
+            await fixedPriceAuction.closeAuction();
+
+            await expect(fixedPriceAuction.distributeAllTokens())
+                .to.emit(fixedPriceAuction, "distributeAllTokensDone")
+                .withArgs('1');
         });
 
         it("allows withdrawing unsold tokens", async () => {
