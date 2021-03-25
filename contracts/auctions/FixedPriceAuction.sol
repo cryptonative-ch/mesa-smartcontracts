@@ -180,7 +180,11 @@ contract FixedPriceAuction {
             "FixedPriceAuction: auction deadline passed"
         );
         tokenIn.safeTransferFrom(msg.sender, address(this), amount);
-        orderOwners.push(msg.sender);
+
+        if (tokensPurchased[msg.sender] == 0) {
+            orderOwners.push(msg.sender);
+        }
+
         // ?? what if the same person buys token more than once
         tokensPurchased[msg.sender] = amount;
         tokensSold = tokensSold.add(amount);
@@ -246,6 +250,8 @@ contract FixedPriceAuction {
    /// todo optimisation: delete from orderOwners on tokenClaim()
     function distributeAllTokens() public {
         require(isClosed, "FixedPriceAuction: auction not closed");
+        uint256 _counter = 0;
+
         for (uint256 i = 0; i < orderOwners.length; i++) {
             address _orderOwner = orderOwners[i];
             if (tokensPurchased[_orderOwner] > 0){
@@ -256,9 +262,13 @@ contract FixedPriceAuction {
                     _orderOwner,
                     _purchasedTokens
                 );
+                if (_counter == 200){
+                    break;
+                }
+                _counter++;
             }
         } // for
-        // optimisation: delete orderOwners
+        // optimisation: delete orderOwners?
         emit distributeAllTokensDone(orderOwners.length);
     }
 
