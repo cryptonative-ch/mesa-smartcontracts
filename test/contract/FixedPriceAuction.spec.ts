@@ -47,8 +47,8 @@ describe("FixedPriceAuction", async () => {
                 "address",
             ],
             [
-                tokenA,
-                tokenB,
+                tokenIn,
+                tokenOut,
                 tokenPrice,
                 tokensForSale,
                 startDate,
