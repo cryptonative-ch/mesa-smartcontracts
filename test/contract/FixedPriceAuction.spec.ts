@@ -9,8 +9,8 @@ describe("FixedPriceAuction", async () => {
     const [user_1, user_2] = waffle.provider.getWallets();
     let fixedPriceAuction: Contract;
     let auctionIntialized: Contract;
-    let tokenA: Contract;
-    let tokenB: Contract;
+    let tokenIn: Contract;
+    let tokenOut: Contract;
     let currentBlockNumber, currentBlock;
 
     const defaultTokenPrice = expandTo18Decimals(10);
@@ -22,8 +22,8 @@ describe("FixedPriceAuction", async () => {
     let defaultEndDate: number;
 
     function encodeInitData(
-        tokenA: string,
-        tokenB: string,
+        tokenIn: string,
+        tokenOut: string,
         tokenPrice: BigNumber,
         tokensForSale: BigNumber,
         startDate: number,
