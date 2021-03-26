@@ -4,7 +4,7 @@ import hre, { ethers, waffle } from "hardhat";
 
 import { mineBlock, expandTo18Decimals } from "./utilities";
 import "@nomiclabs/hardhat-ethers";
-import "@nomiclabs/hardhat-waffle";
+//import "@nomiclabs/hardhat-waffle";
 
 
 import {
@@ -13,11 +13,7 @@ import {
 
 
 describe("FixedPriceAuctionE2E", async () => {
-    const [user_1, user_2, user_3, user_4, user_5, user_6, user_7, user_8, user_9, user_10] = waffle.provider.getWallets();
-    //let wallets = [user_1, user_2, user_3, user_4, user_5, user_6, user_7, user_8, user_9, user_10];
-    //let empty:any[] = [];
-    //const usersCount = 100;
-
+    const [user_1, user_2] = waffle.provider.getWallets();
 
     let fixedPriceAuction: Contract;
     let auctionIntialized: Contract;
@@ -139,7 +135,7 @@ describe("FixedPriceAuctionE2E", async () => {
             let ordersCount = 128;
 
             const distributPerBlock = 100;
-            console.log("distributPerBlock", distributPerBlock);
+            // console.log("distributPerBlock", distributPerBlock);
             
             const accounts = await ethers.getSigners();
             let i = 1;
@@ -157,19 +153,17 @@ describe("FixedPriceAuctionE2E", async () => {
             while (true) {
                 ordersCount = ordersCount - distributPerBlock;
 
-                console.log("ordersCount", ordersCount);
+                //console.log("ordersCount", ordersCount);
 
                 if (ordersCount < 0) {
+                    await expect(fixedPriceAuction.distributeAllTokens())
+                        .to.emit(fixedPriceAuction, "distributeAllTokensLeft")
+                        .withArgs(0);
 
-                await expect(fixedPriceAuction.distributeAllTokens())
-                    .to.emit(fixedPriceAuction, "distributeAllTokensLeft")
-                    .withArgs(0);
-
-                expect(await fixedPriceAuction.ordersCount()).to.be.equal(
-                    0
-                );
-
-                break;
+                    expect(await fixedPriceAuction.ordersCount()).to.be.equal(
+                        0
+                    );
+                    break;
                 }
                 
                 await expect(fixedPriceAuction.distributeAllTokens())
@@ -221,8 +215,8 @@ describe("FixedPriceAuctionE2E", async () => {
                 if (ordersCount < 0) {
                     const tx = await fixedPriceAuction.distributeAllTokens();
                     const gasUsed = (await tx.wait()).gasUsed;
-                    console.log("Gas usage for distributeAllTokens", gasUsed.toString());
-                break;
+                    console.log("Gas u1sage for distributeAllTokens", gasUsed.toString());
+                    break;
                 }
                 const tx = await fixedPriceAuction.distributeAllTokens();
                 const gasUsed = (await tx.wait()).gasUsed;
