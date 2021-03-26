@@ -29,7 +29,7 @@ contract FixedPriceAuction {
 
     event NewTokenClaim(address indexed buyer, uint256 indexed amount);
 
-    event distributeAllTokensDone(uint256 indexed amount);
+    event distributeAllTokensLeft(uint256 indexed amount);
 
     event NewTokenRelease(address indexed buyer, uint256 indexed amount);
 
@@ -48,6 +48,8 @@ contract FixedPriceAuction {
     uint256 public allocationMax;
     uint256 public minimumRaise;
     bool public isClosed;
+
+    uint256 constant numberToDistributionPerBlock = 100;
 
     mapping(address => uint256) public tokensPurchased;
 
@@ -247,29 +249,30 @@ contract FixedPriceAuction {
     }
 
    /// @dev let everyone distribute token to the investors
-   /// todo optimisation: delete from orderOwners on tokenClaim()
     function distributeAllTokens() public {
         require(isClosed, "FixedPriceAuction: auction not closed");
-        uint256 _counter = 0;
-
-        for (uint256 i = 0; i < orderOwners.length; i++) {
-            address _orderOwner = orderOwners[i];
+        uint256 _counter = 1;
+        // loop backwards
+        for (uint256 i = orderOwners.length; i > 0; i--) {
+            address _orderOwner = orderOwners[i-1];
             if (tokensPurchased[_orderOwner] > 0){
                 uint256 _purchasedTokens = tokensPurchased[_orderOwner];
                 tokensPurchased[_orderOwner] = 0;
-                TransferHelper.safeTransfer(
-                    address(tokenOut),
-                    _orderOwner,
-                    _purchasedTokens
-                );
-                if (_counter == 200){
-                    break;
-                }
-                _counter++;
+                TransferHelper.safeTransfer(address(tokenOut), _orderOwner, _purchasedTokens);
             }
+            // delete last entry, even if tokensPurchased[_orderOwner] == 0 this okey, because then token has been claimed by claimTokens()
+            orderOwners.pop();
+            if (_counter == numberToDistributionPerBlock){
+                break;
+            }
+            _counter++;
         } // for
-        // optimisation: delete orderOwners?
-        emit distributeAllTokensDone(orderOwners.length);
+        emit distributeAllTokensLeft(orderOwners.length);
+    }
+
+    /// @dev count how many orders
+    function ordersCount() public view returns (uint256) {
+        return orderOwners.length;
     }
 
     /// @dev withdraw collected funds

@@ -648,8 +648,8 @@ describe("FixedPriceAuction", async () => {
             await fixedPriceAuction.closeAuction();
 
             await expect(fixedPriceAuction.distributeAllTokens())
-                .to.emit(fixedPriceAuction, "distributeAllTokensDone")
-                .withArgs('1');
+                .to.emit(fixedPriceAuction, "distributeAllTokensLeft")
+                .withArgs('0');
         });
         it("allows distribut all tokens after auction closing with two bidders", async () => {
 
@@ -687,8 +687,8 @@ describe("FixedPriceAuction", async () => {
             await fixedPriceAuction.closeAuction();
 
             await expect(fixedPriceAuction.distributeAllTokens())
-                .to.emit(fixedPriceAuction, "distributeAllTokensDone")
-                .withArgs('2');
+                .to.emit(fixedPriceAuction, "distributeAllTokensLeft")
+                .withArgs('0');
         });
         it("allows withdrawing unsold tokens", async () => {
             tokenB.approve(fixedPriceAuction.address, defaultTokensForSale);
