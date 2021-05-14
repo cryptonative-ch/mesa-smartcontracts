@@ -90,7 +90,7 @@ contract FairSale {
     uint256 public auctionStartedDate;
     uint256 public endDate;
     // add totalTokenOutAmount for advanced readabilty and future remove of initialAuctionOrder in Fairsale V2
-    uint256 public totalTokenOutAmount;
+    uint256 public tokensForSale;
     bytes32 public initialAuctionOrder;
     uint256 public minimumBiddingAmountPerOrder;
     uint256 public interimSumBidAmount;
@@ -175,8 +175,7 @@ contract FairSale {
             _totalTokenOutAmount,
             _minBidAmountToReceive
         );
-
-        totalTokenOutAmount =  _totalTokenOutAmount;
+        tokensForSale = _totalTokenOutAmount;
         minimumBiddingAmountPerOrder = _minimumBiddingAmountPerOrder;
         interimSumBidAmount = 0;
         interimOrder = IterableOrderedOrderSet.QUEUE_START;
