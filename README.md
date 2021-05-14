@@ -27,6 +27,12 @@ Building the contracts
 yarn build
 ```
 
+Run the tests
+
+```sh
+yarn test
+```
+
 ## Deploying Contracts
 
 Create a new .env file in the main directory with the following variables:
