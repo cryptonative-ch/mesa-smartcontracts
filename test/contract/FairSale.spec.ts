@@ -171,6 +171,7 @@ describe("FairSale", async () => {
             fairSale.init(initData);
             expect(await fairSale.tokenOut()).to.equal(tokenOut.address);
             expect(await fairSale.tokenIn()).to.equal(tokenIn.address);
+            expect(await fairSale.totalTokenOutAmount()).to.equal(ethers.utils.parseEther("2"));
             expect(await fairSale.initialAuctionOrder()).to.equal(
                 encodeOrder({
                     ownerId: BigNumber.from(1),
