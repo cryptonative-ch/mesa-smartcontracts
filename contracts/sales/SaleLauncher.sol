@@ -3,14 +3,19 @@ pragma solidity >=0.6.8;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../interfaces/ISale.sol";
-import "../interfaces/IMesaFactory.sol";
-import "../libraries/TransferHelper.sol";
-import "../utils/cloneFactory.sol";
+import "../shared/interfaces/ISale.sol";
+import "../shared/interfaces/IMesaFactory.sol";
+import "../shared/libraries/TransferHelper.sol";
+import "../shared/utils/cloneFactory.sol";
 
 contract SaleLauncher is CloneFactory {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
+
+    event TemplateAdded(address indexed template, uint256 templateId);
+    event TemplateRemoved(address indexed template, uint256 templateId);
+    event SaleLaunched(address indexed sale, uint256 templateId);
+    event SaleInitialized(address indexed sale, uint256 templateId, bytes data);
 
     struct Sale {
         bool exists;
@@ -18,18 +23,21 @@ contract SaleLauncher is CloneFactory {
         uint128 index;
     }
 
-    address[] public sales;
-    uint256 public saleTemplateId;
     mapping(uint256 => address) private saleTemplates;
     mapping(address => uint256) private saleTemplateToId;
     mapping(address => Sale) public saleInfo;
 
-    event TemplateAdded(address indexed template, uint256 templateId);
-    event TemplateRemoved(address indexed template, uint256 templateId);
-    event SaleLaunched(address indexed sale, uint256 templateId);
-    event SaleInitialized(address indexed sale, uint256 templateId, bytes data);
-
+    address[] public sales;
+    uint256 public saleTemplateId;
     address public factory;
+
+    modifier isTemplateManager {
+        require(
+            msg.sender == IMesaFactory(factory).templateManager(),
+            "SaleLauncher: FORBIDDEN"
+        );
+        _;
+    }
 
     constructor(address _factory) public {
         factory = _factory;
@@ -57,10 +65,9 @@ contract SaleLauncher is CloneFactory {
             uint256 feeDenominator = IMesaFactory(factory).feeDenominator();
             uint256 feeNumerator = IMesaFactory(factory).feeNumerator();
 
-            uint256 depositAmount =
-                _tokenSupply.mul(feeDenominator.add(feeNumerator)).div(
-                    feeDenominator
-                );
+            uint256 depositAmount = _tokenSupply
+            .mul(feeDenominator.add(feeNumerator))
+            .div(feeDenominator);
 
             TransferHelper.safeTransferFrom(
                 _token,
@@ -95,28 +102,25 @@ contract SaleLauncher is CloneFactory {
         return address(newSale);
     }
 
-    function addTemplate(address _template) external returns (uint256) {
-        require(
-            msg.sender == IMesaFactory(factory).templateManager(),
-            "SaleLauncher: FORBIDDEN"
-        );
+    function addTemplate(address _template)
+        external
+        isTemplateManager
+        returns (uint256)
+    {
         require(
             saleTemplateToId[_template] == 0,
             "SaleLauncher: TEMPLATE_DUPLICATE"
         );
 
+        uint256 templateId = saleTemplateId;
         saleTemplateId++;
         saleTemplates[saleTemplateId] = _template;
         saleTemplateToId[_template] = saleTemplateId;
         emit TemplateAdded(_template, saleTemplateId);
-        return saleTemplateId;
+        return templateId;
     }
 
-    function removeTemplate(uint256 _templateId) external {
-        require(
-            msg.sender == IMesaFactory(factory).templateManager(),
-            "SaleLauncher: FORBIDDEN"
-        );
+    function removeTemplate(uint256 _templateId) external isTemplateManager {
         require(saleTemplates[_templateId] != address(0));
         address template = saleTemplates[_templateId];
         saleTemplates[_templateId] = address(0);

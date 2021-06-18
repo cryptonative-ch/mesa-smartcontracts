@@ -4,13 +4,18 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../libraries/TransferHelper.sol";
+import "../shared/libraries/TransferHelper.sol";
 
 contract FixedPriceSale {
     using SafeERC20 for IERC20;
     using SafeMath for uint64;
     using SafeMath for uint96;
     using SafeMath for uint256;
+
+    modifier notInitialized() {
+        require(!initialized, "already initialized");
+        _;
+    }
 
     event SaleInitialized(
         IERC20 tokenIn,
@@ -21,21 +26,23 @@ contract FixedPriceSale {
         uint256 endDate,
         uint256 allocationMin,
         uint256 allocationMax,
-        uint256 minimumRaise
+        uint256 minimumRaise,
+        address owner
     );
 
     event NewPurchase(address indexed buyer, uint256 indexed amount);
 
     event NewTokenClaim(address indexed buyer, uint256 indexed amount);
 
-    event distributeAllTokensLeft(uint256 indexed amount);
+    event DistributeAllTokensLeft(uint256 indexed amount);
 
     event NewTokenRelease(address indexed buyer, uint256 indexed amount);
 
     event SaleClosed();
 
-    string public constant templateName = "FixedPriceSale";
+    string public constant TEMPLATE_NAME = "FixedPriceSale";
     address public owner;
+    address private deployer;
     IERC20 public tokenIn;
     IERC20 public tokenOut;
     uint256 public tokenPrice;
@@ -47,8 +54,7 @@ contract FixedPriceSale {
     uint256 public allocationMax;
     uint256 public minimumRaise;
     bool public isClosed;
-
-    uint256 constant numberToDistributionPerBlock = 100;
+    bool initialized;
 
     mapping(address => uint256) public tokensPurchased;
 
@@ -59,7 +65,14 @@ contract FixedPriceSale {
         _;
     }
 
-    constructor() public {}
+    modifier onlyDeployer {
+        require(msg.sender == deployer, "FixedPriceSale: FORBIDDEN");
+        _;
+    }
+
+    constructor() public {
+        deployer = msg.sender;
+    }
 
     /// @dev internal setup function to initialize the template, called by init()
     /// @param _tokenIn token to make the bid in
@@ -95,6 +108,7 @@ contract FixedPriceSale {
             _endDate > _startDate || _endDate == 0,
             "FixedPriceSale: invalid endDate"
         );
+        initialized = true;
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
         tokenPrice = _tokenPrice;
@@ -109,50 +123,6 @@ contract FixedPriceSale {
         tokenOut.safeTransferFrom(msg.sender, address(this), tokensForSale);
 
         emit SaleInitialized(
-            _tokenIn,
-            _tokenOut,
-            _tokenPrice,
-            _tokensForSale,
-            _startDate,
-            _endDate,
-            _allocationMin,
-            _allocationMax,
-            _minimumRaise
-        );
-    }
-
-    /// @dev init function expexted to be called by SaleLauncher to init the sale
-    /// @param _data encoded init params
-    function init(bytes calldata _data) public {
-        (
-            IERC20 _tokenIn,
-            IERC20 _tokenOut,
-            uint256 _tokenPrice,
-            uint256 _tokensForSale,
-            uint256 _startDate,
-            uint256 _endDate,
-            uint256 _allocationMin,
-            uint256 _allocationMax,
-            uint256 _minimumRaise,
-            address _owner
-        ) =
-            abi.decode(
-                _data,
-                (
-                    IERC20,
-                    IERC20,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    address
-                )
-            );
-
-        initSale(
             _tokenIn,
             _tokenOut,
             _tokenPrice,
@@ -177,6 +147,10 @@ contract FixedPriceSale {
             "FixedPriceSale: allocationMax reached"
         );
         require(block.timestamp < endDate, "FixedPriceSale: deadline passed");
+        require(
+            tokensSold.add(amount) <= tokensForSale,
+            "FixedPriceSale: sale sold out"
+        );
         tokenIn.safeTransferFrom(msg.sender, address(this), amount);
 
         if (tokensPurchased[msg.sender] == 0) {
@@ -205,14 +179,15 @@ contract FixedPriceSale {
     }
 
     /// @dev realease tokenIn back to investors if minimumRaise not reached
-    function releaseTokens() public {
+    /// can also be used from external script to automatically release tokens for investors
+    function releaseTokens(address account) public {
         require(minimumRaise > 0, "FixedPriceSale: no minumumRaise");
         require(
             block.timestamp > endDate,
             "FixedPriceSale: endDate not passed"
         );
         require(
-            tokensPurchased[msg.sender] > 0,
+            tokensPurchased[account] > 0,
             "FixedPriceSale: no tokens purchased by this investor"
         );
         require(
@@ -220,54 +195,28 @@ contract FixedPriceSale {
             "FixedPriceSale: minumumRaise reached"
         );
 
-        uint256 tokensAmount = tokensPurchased[msg.sender];
-        tokensPurchased[msg.sender] = 0;
-        isClosed = true;
-        TransferHelper.safeTransfer(address(tokenIn), msg.sender, tokensAmount);
-        emit NewTokenRelease(msg.sender, tokensAmount);
+        uint256 tokensAmount = tokensPurchased[account];
+        tokensPurchased[account] = 0;
+        TransferHelper.safeTransfer(address(tokenIn), account, tokensAmount);
+        emit NewTokenRelease(account, tokensAmount);
     }
 
     /// @dev let investors claim their purchased tokens
-    function claimTokens() public {
+    /// can also be used from external script to automatically claim tokens for investors
+    function claimTokens(address account) public {
         require(isClosed, "FixedPriceSale: sale not closed");
         require(
-            tokensPurchased[msg.sender] > 0,
+            tokensPurchased[account] > 0,
             "FixedPriceSale: no tokens to claim"
         );
-        uint256 purchasedTokens = tokensPurchased[msg.sender];
-        tokensPurchased[msg.sender] = 0;
+        uint256 purchasedTokens = tokensPurchased[account].mul(tokenPrice);
+        tokensPurchased[account] = 0;
         TransferHelper.safeTransfer(
             address(tokenOut),
-            msg.sender,
+            account,
             purchasedTokens
         );
-        emit NewTokenClaim(msg.sender, purchasedTokens);
-    }
-
-    /// @dev let everyone distribute token to the investors
-    function distributeAllTokens() public {
-        require(isClosed, "FixedPriceSale: sale not closed");
-        uint256 _counter = 1;
-        // loop backwards
-        for (uint256 i = orderOwners.length; i > 0; i--) {
-            address _orderOwner = orderOwners[i - 1];
-            if (tokensPurchased[_orderOwner] > 0) {
-                uint256 _purchasedTokens = tokensPurchased[_orderOwner];
-                tokensPurchased[_orderOwner] = 0;
-                TransferHelper.safeTransfer(
-                    address(tokenOut),
-                    _orderOwner,
-                    _purchasedTokens
-                );
-            }
-            // delete last entry, even if tokensPurchased[_orderOwner] == 0 this okey, because then token has been claimed by claimTokens()
-            orderOwners.pop();
-            if (_counter == numberToDistributionPerBlock) {
-                break;
-            }
-            _counter++;
-        } // for
-        emit distributeAllTokensLeft(orderOwners.length);
+        emit NewTokenClaim(account, purchasedTokens);
     }
 
     /// @dev count how many orders
@@ -303,18 +252,76 @@ contract FixedPriceSale {
         );
     }
 
+    /// @dev init function expexted to be called by SaleLauncher to init the sale
+    /// @param _data encoded init params
+    function init(bytes calldata _data) public notInitialized onlyDeployer {
+        (
+            IERC20 _tokenIn,
+            IERC20 _tokenOut,
+            uint256 _tokenPrice,
+            uint256 _tokensForSale,
+            uint256 _startDate,
+            uint256 _endDate,
+            uint256 _allocationMin,
+            uint256 _allocationMax,
+            uint256 _minimumRaise,
+            address _owner
+        ) = abi.decode(
+            _data,
+            (
+                IERC20,
+                IERC20,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                address
+            )
+        );
+
+        initSale(
+            _tokenIn,
+            _tokenOut,
+            _tokenPrice,
+            _tokensForSale,
+            _startDate,
+            _endDate,
+            _allocationMin,
+            _allocationMax,
+            _minimumRaise,
+            _owner
+        );
+    }
+
     /// @dev withdraw any ERC20 token by owner
     /// @param token ERC20 token address
     /// @param amount Amount to withdraw
     function ERC20Withdraw(address token, uint256 amount) external onlyOwner() {
-        require(block.timestamp > endDate, "FixedPriceSale: sale not ended");
+        require(isClosed, "FixedPriceSale: sale not closed");
+        require(
+            block.timestamp > endDate,
+            "FixedPriceSale: deadline not reached"
+        );
+        if (isClosed) {
+            require(
+                token != address(tokenOut),
+                "FixedPriceSale: cannot withdraw tokenOut"
+            );
+        }
         TransferHelper.safeTransfer(token, owner, amount);
     }
 
     /// @dev withdraw ETH token by owner
     /// @param amount ETH amount to withdraw
     function ETHWithdraw(uint256 amount) external onlyOwner() {
-        require(block.timestamp > endDate, "FixedPriceSale: sale not ended");
+        require(isClosed, "FixedPriceSale: sale not closed");
+        require(
+            block.timestamp > endDate,
+            "FixedPriceSale: deadline not reached"
+        );
         TransferHelper.safeTransferETH(owner, amount);
     }
 

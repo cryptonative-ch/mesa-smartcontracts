@@ -123,7 +123,14 @@ describe("TemplateLauncher", async () => {
 
         const MesaFactory = await ethers.getContractFactory("MesaFactory");
 
-        mesaFactory = await MesaFactory.deploy();
+        mesaFactory = await MesaFactory.deploy(
+            templateManager.address,
+            templateManager.address,
+            templateManager.address,
+            0,
+            0,
+            0
+        );
 
         const TemplateLauncher = await ethers.getContractFactory(
             "TemplateLauncher"
@@ -131,15 +138,7 @@ describe("TemplateLauncher", async () => {
 
         templateLauncher = await TemplateLauncher.deploy(mesaFactory.address);
 
-        await mesaFactory.initialize(
-            templateManager.address,
-            templateManager.address,
-            templateManager.address,
-            templateLauncher.address,
-            0,
-            0,
-            0
-        );
+        await mesaFactory.setTemplateLauncher(templateLauncher.address);
 
         const SaleLauncher = await ethers.getContractFactory("SaleLauncher");
 
@@ -346,8 +345,8 @@ describe("TemplateLauncher", async () => {
                 templateManager.address
             );
 
-            await tokenA.mint(templateManager.address, expandTo18Decimals(50));
-            await tokenA.approve(saleLauncher.address, expandTo18Decimals(50));
+            await tokenB.mint(templateManager.address, expandTo18Decimals(50));
+            await tokenB.approve(saleLauncher.address, expandTo18Decimals(50));
 
             const launchedTemplate = await mesaFactory.launchTemplate(
                 1,
@@ -357,9 +356,10 @@ describe("TemplateLauncher", async () => {
                 }
             );
 
-            const launchedTemplateTx = await ethers.provider.getTransactionReceipt(
-                launchedTemplate.hash
-            );
+            const launchedTemplateTx =
+                await ethers.provider.getTransactionReceipt(
+                    launchedTemplate.hash
+                );
 
             newFairSaleTemplate = new ethers.Contract(
                 launchedTemplateTx.logs[1].address,
