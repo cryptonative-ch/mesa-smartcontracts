@@ -12,9 +12,42 @@ Mainly fixes for fixeprice sale
 ### Added
  
  - template metadata over ipfs (#68)  48627ca58b39b541b1aa0bac6bc23bfbf6bcbdf5
+
+
 ### Changed
 
+#### Fixedprice
+
+##### events
+
+NewPurchase() -> NewCommitment()
+NewTokenClaim() -> NewTokenWithdraw()  (In UI called Claim)
+NewTokenRelease() -> NewTokenRelease() (In UI called Claim)
+
+##### vars
+
+**Renaming**: 
+tokensPurchased -> commitment (in tokenIn)
+
+allocationMin -> minCommitment (min in tokenIn)
+allocationMax -> maxCommitment (max in tokenIn)
+
+
+#### functions
+
+**Renaming**: 
+buyTokens() -> commitTokens
+
+**logic**:
+
+closeSale() 
+
+* isClosed = true, close sale if either minRaise is reached or endDate passed
+* tokenIn and unsold tokenOut sent to owner 
+
 - mesaFactory.initalize -> mesaFactory.initialize / e17bb3dec3d65c741fba7b375f9b8e232f4fdfe6
+- (draft) allocationMin has been in tokenOut, now we use minCommitment for this and its in tokenIn (#88)
+- (draft) allocationMax has been in tokenOut, now we use maxCommitment for this and its in tokenIn (#88)
 
 ### Fixed
 
