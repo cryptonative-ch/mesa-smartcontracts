@@ -1,7 +1,7 @@
+import "@nomiclabs/hardhat-waffle";
 require("@nomiclabs/hardhat-truffle5");
 require("solidity-coverage");
 require("@nomiclabs/hardhat-etherscan");
-require("@nomiclabs/hardhat-waffle");
 require("hardhat-gas-reporter");
 require("./tasks/deploy");
 require("./tasks/launch_FairSale");
@@ -21,11 +21,7 @@ module.exports = {
             url: "https://xdai.poanetwork.dev",
             accounts: [process.env.PRIVATE_KEY],
         },
-        hardhat: {
-            accounts: {
-                count: 128,
-            },
-        },
+        hardhat: {},
     },
     mocha: {
         timeout: "600s",
